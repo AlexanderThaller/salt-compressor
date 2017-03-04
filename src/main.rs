@@ -49,6 +49,23 @@ impl Retcode {
     }
 }
 
+#[cfg(test)]
+mod test_retcode {
+    use Retcode;
+
+    #[test]
+    fn from_success() {
+        assert_eq!(Retcode::Success, 0.into())
+    }
+
+    #[test]
+    fn from_failure() {
+        for i in 1..10 {
+            assert_eq!(Retcode::Failure, i.into())
+        }
+    }
+}
+
 impl Default for Retcode {
     fn default() -> Retcode {
         Retcode::Failure
@@ -57,10 +74,9 @@ impl Default for Retcode {
 
 impl From<u64> for Retcode {
     fn from(input: u64) -> Self {
-        if input == 0 {
-            Retcode::Success
-        } else {
-            Retcode::Failure
+        match input {
+            0 => Retcode::Success,
+            _ => Retcode::Failure,
         }
     }
 }
@@ -113,6 +129,7 @@ fn main() {
     let value: Value = serde_json::from_str(host_data.as_str())
         .expect("can not convert input data to value. have you run the salt command with \
                  --static?");
+    trace!("value: {}", value);
 
     let results = match get_results(&value, no_return) {
         Ok(r) => r,
@@ -190,18 +207,13 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
         match *ret {
             Value::Null => return Err(ResultError::RetValueIsNull),
             Value::Bool(r) => {
-                let (command, result, output) = if r {
-                    (None, Some("true".to_string()), None)
-                } else {
-                    (None, Some("false".to_string()), None)
-                };
+                let result = Some(r.to_string());
 
                 results.push(MinionResult {
-                    command: command,
                     host: host.clone(),
-                    output: output,
                     result: result,
                     retcode: retcode,
+                    ..MinionResult::default()
                 });
             }
             Value::Number(_) => return Err(ResultError::RetValueIsNumber),
@@ -222,7 +234,7 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
                 results.push(MinionResult {
                     host: host.clone(),
                     result: Some(values.join("\n").to_string()),
-                    retcode: retcode.clone(),
+                    retcode: retcode,
                     ..MinionResult::default()
                 });
             }
@@ -286,6 +298,134 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod test_get_results {
+    extern crate serde_json;
+    use serde_json::Value;
+    use get_results;
+    use Retcode;
+    use MinionResult;
+
+    #[test]
+    #[should_panic]
+    fn value_not_an_object() {
+        let value = Value::default();
+
+        match get_results(&value, Vec::new()) {
+            Ok(_) => {}
+            Err(e) => panic!(e),
+        }
+    }
+
+    #[test]
+    fn empty_results() {
+        let value: Value = serde_json::from_str("{}").unwrap();
+
+        let got = match get_results(&value, Vec::new()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+        let expected = Vec::new();
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn only_failed_hosts() {
+        let value: Value = serde_json::from_str("{}").unwrap();
+        let failed_hosts = vec!["failed1".to_string(), "failed".to_string()];
+
+        let got = match get_results(&value, failed_hosts.clone()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+        let mut expected = Vec::new();
+        for host in failed_hosts {
+            expected.push(MinionResult {
+                host: host,
+                retcode: Retcode::Failure,
+                output: Some("Minion did not respond. No job will be sent.".to_string()),
+                ..MinionResult::default()
+            });
+        }
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn array() {
+        let input = include_str!("../testdata/array.json");
+        let value: Value = serde_json::from_str(input).unwrap();
+
+        let got = match get_results(&value, Vec::new()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+
+        let mut expected = Vec::new();
+        expected.push(MinionResult {
+            host: "minion".to_string(),
+            retcode: Retcode::Failure,
+            result: Some("line1\nline2\nline3".to_string()),
+            ..MinionResult::default()
+        });
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn array_weird() {
+        let input = include_str!("../testdata/array_weird.json");
+        let value: Value = serde_json::from_str(input).unwrap();
+
+        match get_results(&value, Vec::new()) {
+            Ok(_) => {}
+            Err(e) => panic!(e),
+        };
+    }
+
+    #[test]
+    fn bool() {
+        let input = include_str!("../testdata/bool.json");
+        let value: Value = serde_json::from_str(input).unwrap();
+
+        let got = match get_results(&value, Vec::new()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+
+        let mut expected = Vec::new();
+        expected.push(MinionResult {
+            host: "minion".to_string(),
+            retcode: Retcode::Success,
+            result: Some("true".to_string()),
+            ..MinionResult::default()
+        });
+        expected.push(MinionResult {
+            host: "minion_fail".to_string(),
+            retcode: Retcode::Failure,
+            result: Some("false".to_string()),
+            ..MinionResult::default()
+        });
+        expected.sort();
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
 }
 
 fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> {
