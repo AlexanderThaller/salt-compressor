@@ -539,23 +539,23 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
 
     if changed {
         println!("");
-        info!("filtered {} unchanged state{}",
-              unchanged,
+        info!("filtered state{}: {}",
               if unchanged > 1 || unchanged == 0 {
                   "s"
               } else {
                   ""
-              });
+              },
+              unchanged);
     }
 
-    info!("succeeded host{} {}",
+    info!("succeeded host{}: {}",
           if succeeded_hosts > 1 || succeeded_hosts == 0 {
               "s"
           } else {
               ""
           },
           succeeded_hosts);
-    info!("failed host{} {}",
+    info!("failed host{}: {}",
           if failed_hosts > 1 || failed_hosts == 0 {
               "s"
           } else {
