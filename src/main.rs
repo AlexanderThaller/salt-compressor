@@ -539,11 +539,29 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
 
     if changed {
         println!("");
-        info!("filtered {} unchanged states", unchanged);
+        info!("filtered {} unchanged state{}",
+              if unchanged > 1 || unchanged == 0 {
+                  "s"
+              } else {
+                  ""
+              },
+              unchanged);
     }
 
-    info!("succeeded hosts {}", succeeded_hosts);
-    info!("failed hosts {}", failed_hosts);
+    info!("succeeded host{} {}",
+          if succeeded_hosts > 1 || succeeded_hosts == 0 {
+              "s"
+          } else {
+              ""
+          },
+          succeeded_hosts);
+    info!("failed host{} {}",
+          if failed_hosts > 1 || failed_hosts == 0 {
+              "s"
+          } else {
+              ""
+          },
+          failed_hosts);
 }
 
 fn write_save_file(host_data: &str) {
