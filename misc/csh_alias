@@ -1,0 +1,2 @@
+alias pretty_salt 'salt \!* -b 20 --static --out json | /usr/local/bin/salt-compressor --input -'
+alias pretty_salt_onlychanged 'salt \!* -b 20 --static --out json | /usr/local/bin/salt-compressor --input - --changed'
