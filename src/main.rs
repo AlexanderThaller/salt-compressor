@@ -98,17 +98,22 @@ fn main() {
     let no_save_file = matches.is_present("no_save_file");
 
     let (host_data, no_return) = {
-        let input = matches.value_of("input").expect("can not get input file from args");
+        let input_data = {
+            let input = matches.value_of("input").expect("can not get input file from args");
 
-        let input = if input == "-" {
-            let mut buffer = String::new();
-            io::stdin().read_to_string(&mut buffer).expect("can not read from stdin");
-            buffer
-        } else {
-            let mut file = File::open(input).expect("can not open input file");
-            let mut input = String::new();
-            file.read_to_string(&mut input).expect("can not read input file to string");
-            input
+            match input {
+                "-" => {
+                    let mut buffer = String::new();
+                    io::stdin().read_to_string(&mut buffer).expect("can not read from stdin");
+                    buffer
+                }
+                _ => {
+                    let mut file = File::open(input).expect("can not open input file");
+                    let mut input = String::new();
+                    file.read_to_string(&mut input).expect("can not read input file to string");
+                    input
+                }
+            }
         };
 
         let mut no_return = Vec::new();
@@ -119,21 +124,22 @@ fn main() {
             Regex::new(r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$")
                 .expect("regex for catching not returned minions is not valid");
 
-        for host in catch_not_returned_minions.captures_iter(input.as_str()) {
+        for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
             no_return.push(host[1].to_string());
         }
-        let input = catch_not_returned_minions.replace_all(input.as_str(), "").into_owned();
+        let input_data = catch_not_returned_minions.replace_all(input_data.as_str(), "")
+            .into_owned();
 
         let no_return_received = "ERROR: No return received";
-        let input = if input.contains(no_return_received) {
+        let input_data = if input_data.contains(no_return_received) {
             no_return.push('*'.to_string());
-            input.replace(no_return_received, "")
+            input_data.replace(no_return_received, "")
         } else {
-            input
+            input_data
         };
 
         // clean up hosts that have not returned from the json data
-        (input, no_return)
+        (input_data, no_return)
     };
 
     trace!("input: {}", host_data);
