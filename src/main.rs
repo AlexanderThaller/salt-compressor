@@ -124,12 +124,10 @@ fn main() {
         }
         let input = catch_not_returned_minions.replace_all(input.as_str(), "").into_owned();
 
-        let no_return_received = Regex::new(r"ERROR: No return received")
-            .expect("regex for no return received is not valid");
-
-        let input = if no_return_received.is_match(input.as_str()) {
+        let no_return_received = "ERROR: No return received";
+        let input = if input.contains(no_return_received) {
             no_return.push('*'.to_string());
-            no_return_received.replace_all(input.as_str(), "").into_owned()
+            input.replace(no_return_received, "")
         } else {
             input
         };
