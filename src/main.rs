@@ -81,7 +81,7 @@ fn main() {
     let changed = matches.is_present("changed");
     let no_save_file = matches.is_present("no_save_file");
 
-    let host_data = {
+    let (host_data, no_return) = {
         let input = matches.value_of("input").expect("can not get input file from args");
 
         let input = if input == "-" {
@@ -101,19 +101,20 @@ fn main() {
             Regex::new(r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$")
                 .expect("regex for catching not returned minions is not valid");
 
+        let mut no_return = Vec::new();
         for host in catch_not_returned_minions.captures_iter(input.as_str()) {
-            warn!("host {} did not return", &host[1]);
+            no_return.push(host[1].to_string());
         }
 
         // clean up hosts that have not returned from the json data
-        catch_not_returned_minions.replace_all(input.as_str(), "").into_owned()
+        (catch_not_returned_minions.replace_all(input.as_str(), "").into_owned(), no_return)
     };
 
     let value: Value = serde_json::from_str(host_data.as_str())
         .expect("can not convert input data to value. have you run the salt command with \
                  --static?");
 
-    let results = match get_results(&value) {
+    let results = match get_results(&value, no_return) {
         Ok(r) => r,
         Err(e) => {
             error!("can not get results from serde value: {}", e);
@@ -157,7 +158,7 @@ impl fmt::Display for ResultError {
     }
 }
 
-fn get_results(value: &Value) -> Result<MinionResults, ResultError> {
+fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, ResultError> {
     if !value.is_object() {
         return Err(ResultError::ValueNotAnObject);
     }
@@ -273,6 +274,15 @@ fn get_results(value: &Value) -> Result<MinionResults, ResultError> {
                 }
             }
         };
+    }
+
+    for host in no_return {
+        results.push(MinionResult {
+            host: host,
+            retcode: Retcode::Failure,
+            output: Some("Minion did not respond. No job will be sent.".to_string()),
+            ..MinionResult::default()
+        });
     }
 
     Ok(results)
