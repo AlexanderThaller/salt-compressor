@@ -540,12 +540,12 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
     if changed {
         println!("");
         info!("filtered {} unchanged state{}",
+              unchanged,
               if unchanged > 1 || unchanged == 0 {
                   "s"
               } else {
                   ""
-              },
-              unchanged);
+              });
     }
 
     info!("succeeded host{} {}",
