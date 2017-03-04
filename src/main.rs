@@ -111,20 +111,34 @@ fn main() {
             input
         };
 
+        let mut no_return = Vec::new();
+
         // match all hosts that have not returned as they are not in the json data
         // format is normally like "Minion pricesearch did not respond. No job will be sent."
         let catch_not_returned_minions =
             Regex::new(r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$")
                 .expect("regex for catching not returned minions is not valid");
 
-        let mut no_return = Vec::new();
         for host in catch_not_returned_minions.captures_iter(input.as_str()) {
             no_return.push(host[1].to_string());
         }
+        let input = catch_not_returned_minions.replace_all(input.as_str(), "").into_owned();
+
+        let no_return_received = Regex::new(r"ERROR: No return received")
+            .expect("regex for no return received is not valid");
+
+        let input = if no_return_received.is_match(input.as_str()) {
+            no_return.push('*'.to_string());
+            no_return_received.replace_all(input.as_str(), "").into_owned()
+        } else {
+            input
+        };
 
         // clean up hosts that have not returned from the json data
-        (catch_not_returned_minions.replace_all(input.as_str(), "").into_owned(), no_return)
+        (input, no_return)
     };
+
+    trace!("input: {}", host_data);
 
     let value: Value = serde_json::from_str(host_data.as_str())
         .expect("can not convert input data to value. have you run the salt command with \
@@ -309,13 +323,13 @@ mod test_get_results {
     use MinionResult;
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "value it not an object")]
     fn value_not_an_object() {
         let value = Value::default();
 
         match get_results(&value, Vec::new()) {
             Ok(_) => {}
-            Err(e) => panic!(e),
+            Err(e) => panic!(format!("{}", e)),
         }
     }
 
@@ -385,7 +399,7 @@ mod test_get_results {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "can not convert the array value to a string")]
     fn array_weird() {
         let input = include_str!("../testdata/array_weird.json");
         let value: Value = serde_json::from_str(input).unwrap();
