@@ -444,12 +444,16 @@ fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> 
 
 fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: bool) {
     let mut unchanged = 0;
+    let mut succeeded_hosts = 0;
+    let mut failed_hosts = 0;
+
     for (result, hosts) in compressed {
         // continue if we only want to print out changes and there are none and the command was a
         // success
         // TODO: make this a filter of the map
         if changed && !result.output.is_some() && result.retcode.is_success() {
             unchanged += 1;
+            succeeded_hosts += 1;
             continue;
         }
 
@@ -484,8 +488,14 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
             println!("{}", "------".yellow());
 
             match result.retcode {
-                Retcode::Success => println!("{}{}", "RETURN CODE: ".yellow(), "Success".green()),
-                Retcode::Failure => println!("{}{}", "RETURN CODE: ".yellow(), "Failure".red()),
+                Retcode::Success => {
+                    succeeded_hosts += hosts.len();
+                    println!("{}{}", "RETURN CODE: ".yellow(), "Success".green())
+                }
+                Retcode::Failure => {
+                    failed_hosts += hosts.len();
+                    println!("{}{}", "RETURN CODE: ".yellow(), "Failure".red())
+                }
             }
 
             if result.result.is_some() {
@@ -519,6 +529,9 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
         println!("");
         info!("filtered {} unchanged states", unchanged);
     }
+
+    info!("succeeded hosts {}", succeeded_hosts);
+    info!("failed hosts {}", failed_hosts);
 }
 
 fn write_save_file(host_data: &str) {
