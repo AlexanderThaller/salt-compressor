@@ -1,0 +1,15 @@
+[package]
+name = "salt-compressor"
+version = "0.1.0"
+authors = ["Alexander Thaller <alexander.thaller@trivago.com>"]
+
+[dependencies]
+colored = "1.4"
+log = "0.3.6"
+loggerv = "0.2.0"
+regex = "0.2"
+serde_json = "0.9"
+
+[dependencies.clap]
+version = "2.20.5"
+features = ["yaml"]

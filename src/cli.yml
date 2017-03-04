@@ -1,0 +1,29 @@
+name: "salt-compressor"
+author: "Alexander Thaller <alexander.thaller@trivago.com>"
+about: "Compress the output of saltstack-runs to make it easier to review changes that happen to a lot of servers."
+global_settings:
+  - "ColoredHelp"
+  - "GlobalVersion"
+  - "NextLineHelp"
+  - "VersionlessSubcommands"
+args:
+    - loglevel:
+        help: "Loglevel to run under"
+        long: "loglevel"
+        short: "l"
+        takes_value: true
+        default_value: "info"
+        value_name: "level"
+        possible_values: [ "trace", "debug", "info", "warn", "error" ]
+        global: true
+    - input:
+        help: "Path to the input file. If input is '-' read from stdin"
+        long: "input"
+        short: "i"
+        takes_value: true
+        value_name: "path"
+        required: true
+    - changed:
+        help: "Only print states that have outputs"
+        long: "changed"
+        short: "c"
