@@ -377,7 +377,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
 
     if changed {
         println!("");
-        info!("{} unchanged states", unchanged);
+        info!("filtered {} unchanged states", unchanged);
     }
 }
 
