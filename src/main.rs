@@ -7,6 +7,8 @@ extern crate clap;
 
 extern crate serde_json;
 
+extern crate time;
+
 extern crate regex;
 
 extern crate colored;
@@ -19,6 +21,8 @@ use serde_json::Value;
 use std::collections::BTreeMap as DataMap;
 use std::fs::File;
 use std::io::{self, Read};
+use std::io::Write;
+use time::get_time;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 struct Result {
@@ -102,6 +106,15 @@ fn main() {
         catch_not_returned_minions.replace_all(input.as_str(), "").into_owned()
     };
 
+    // TODO: Make functions use errors instead of panicing and only write a save file if there is
+    // an error
+    let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
+    let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
+    save_file.write_all(host_data.as_bytes()).expect("can not write host data to save_file");
+    info!("if something breakes please send me the save file under {} which contains the json \
+           data from salt",
+          save_filename);
+
     let value: Value = serde_json::from_str(host_data.as_str())
         .expect("can not convert input data to value. have you run the salt command with \
                  --static?");
@@ -114,6 +127,7 @@ fn main() {
 
     print_compressed(compressed, changed);
 
+    std::fs::remove_file(save_filename).expect("can not remove save_file");
 }
 
 fn get_results(value: &Value) -> Results {
