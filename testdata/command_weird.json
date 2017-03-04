@@ -1,0 +1,13 @@
+{
+  "minion": {
+    "retcode": 0,
+    "ret": {
+      "command_with_weird_diff": {
+        "comment": "comment",
+        "changes": {
+          "diff": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "minion": {
+    "retcode": 254,
+    "ret": "'test' __virtual__ returned False"
+  }
+}

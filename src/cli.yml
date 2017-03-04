@@ -27,3 +27,7 @@ args:
         help: "Only print states that have outputs"
         long: "changed"
         short: "c"
+    - no_save_file:
+        help: "Do not write save file on error"
+        long: "no_save_file"
+        short: "n"

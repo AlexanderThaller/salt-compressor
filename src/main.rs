@@ -19,13 +19,15 @@ use log::LogLevel;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::BTreeMap as DataMap;
+use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
 use std::io::Write;
+use std::process;
 use time::get_time;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-struct Result {
+struct MinionResult {
     command: Option<String>,
     retcode: Retcode,
     output: Option<String>,
@@ -33,7 +35,7 @@ struct Result {
     host: String,
 }
 
-type Results = Vec<Result>;
+type MinionResults = Vec<MinionResult>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Retcode {
@@ -77,6 +79,7 @@ fn main() {
     }
 
     let changed = matches.is_present("changed");
+    let no_save_file = matches.is_present("no_save_file");
 
     let host_data = {
         let input = matches.value_of("input").expect("can not get input file from args");
@@ -106,36 +109,60 @@ fn main() {
         catch_not_returned_minions.replace_all(input.as_str(), "").into_owned()
     };
 
-    // TODO: Make functions use errors instead of panicing and only write a save file if there is
-    // an error
-    let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
-    let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
-    save_file.write_all(host_data.as_bytes()).expect("can not write host data to save_file");
-    info!("if something breakes please send me the save file under {} which contains the json \
-           data from salt",
-          save_filename);
-
     let value: Value = serde_json::from_str(host_data.as_str())
         .expect("can not convert input data to value. have you run the salt command with \
                  --static?");
 
-    let results = get_results(&value);
+    let results = match get_results(&value) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("can not get results from serde value: {}", e);
+            if !no_save_file {
+                write_save_file(host_data);
+            }
+            process::exit(1)
+        }
+    };
+
     trace!("results: {:#?}", results);
 
     let compressed = get_compressed(results);
     trace!("compressed: {:#?}", compressed);
 
     print_compressed(compressed, changed);
-
-    std::fs::remove_file(save_filename).expect("can not remove save_file");
 }
 
-fn get_results(value: &Value) -> Results {
+#[derive(Debug)]
+enum ResultError {
+    ConvertDiffToString,
+    ConvertValueToString,
+    ReturnCodeNotNumber,
+    RetValueIsNone,
+    RetValueIsNull,
+    RetValueIsNumber,
+    ValueNotAnObject,
+}
+
+impl fmt::Display for ResultError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ResultError::ConvertDiffToString => write!(f, "can not convert diff to string"),
+            ResultError::ConvertValueToString => write!(f, "can not convert value to string"),
+            ResultError::ReturnCodeNotNumber => write!(f, "returncode is not a number"),
+            ResultError::RetValueIsNone => write!(f, "ret value is none"),
+            ResultError::RetValueIsNull => write!(f, "ret value is null"),
+            ResultError::RetValueIsNumber => write!(f, "ret value is number"),
+            ResultError::ValueNotAnObject => write!(f, "value it not an object"),
+        }
+    }
+}
+
+fn get_results(value: &Value) -> Result<MinionResults, ResultError> {
     if !value.is_object() {
-        panic!("value is not an object");
+        return Err(ResultError::ValueNotAnObject);
     }
 
-    let mut results: Results = Vec::new();
+    let mut results: MinionResults = Vec::new();
 
     for (host, values) in value.as_object().unwrap().iter() {
         trace!("host: {:#?}", host);
@@ -143,9 +170,10 @@ fn get_results(value: &Value) -> Results {
 
         let retcode: Retcode = match values.get("retcode") {
             Some(o) => {
-                o.as_u64()
-                    .expect("return code is not a number")
-                    .into()
+                match o.as_u64() {
+                    Some(v) => v.into(),
+                    None => return Err(ResultError::ReturnCodeNotNumber),
+                }
             }
             None => {
                 warn!("host {} does not have a return code", host);
@@ -153,12 +181,13 @@ fn get_results(value: &Value) -> Results {
             }
         };
 
+        let ret = match values.get("ret") {
+            None => return Err(ResultError::RetValueIsNone),
+            Some(r) => r,
+        };
 
-        match *values.get("ret")
-            .expect("no ret to parse from value") {
-            Value::Null => {
-                panic!("do not know how to match null to a result");
-            }
+        match *ret {
+            Value::Null => return Err(ResultError::RetValueIsNull),
             Value::Bool(r) => {
                 let (command, result, output) = if r {
                     (None, Some("true".to_string()), None)
@@ -166,7 +195,7 @@ fn get_results(value: &Value) -> Results {
                     (None, Some("false".to_string()), None)
                 };
 
-                results.push(Result {
+                results.push(MinionResult {
                     command: command,
                     host: host.clone(),
                     output: output,
@@ -174,13 +203,13 @@ fn get_results(value: &Value) -> Results {
                     retcode: retcode,
                 });
             }
-            Value::Number(_) => unimplemented!(),
+            Value::Number(_) => return Err(ResultError::RetValueIsNumber),
             Value::String(ref r) => {
-                results.push(Result {
+                results.push(MinionResult {
                     host: host.clone(),
                     result: Some(r.clone()),
                     retcode: retcode,
-                    ..Result::default()
+                    ..MinionResult::default()
                 });
             }
 
@@ -189,19 +218,19 @@ fn get_results(value: &Value) -> Results {
                     .map(|v| v.as_str().expect("can not convert the array value to a string"))
                     .collect();
 
-                results.push(Result {
+                results.push(MinionResult {
                     host: host.clone(),
                     result: Some(values.join("\n").to_string()),
                     retcode: retcode.clone(),
-                    ..Result::default()
+                    ..MinionResult::default()
                 });
             }
             Value::Object(ref r) => {
                 if r.is_empty() {
-                    results.push(Result {
+                    results.push(MinionResult {
                         host: host.clone(),
                         retcode: retcode.clone(),
-                        ..Result::default()
+                        ..MinionResult::default()
                     });
                 }
 
@@ -209,18 +238,24 @@ fn get_results(value: &Value) -> Results {
                     trace!("command: {:#?}", command);
                     trace!("command_result: {:#?}", command_result);
 
-                    let result = command_result.get("comment")
-                        .expect("no comment for the parsed command found")
-                        .as_str()
-                        .expect("can not convert comment of command to string");
+                    let result = match command_result.get("comment") {
+                        Some(r) => {
+                            match r.as_str() {
+                                Some(s) => Some(s.to_string()),
+                                None => return Err(ResultError::ConvertValueToString),
+                            }
+                        }
+                        None => None,
+                    };
 
                     let output = match command_result.get("changes") {
                         Some(r) => {
                             match r.get("diff") {
                                 Some(d) => {
-                                    Some(d.as_str()
-                                        .expect("can not convert diff of changes to string")
-                                        .to_string())
+                                    match d.as_str() {
+                                        Some(i) => Some(i.to_string()),
+                                        None => return Err(ResultError::ConvertDiffToString),
+                                    }
                                 }
                                 None => None,
                             }
@@ -228,11 +263,11 @@ fn get_results(value: &Value) -> Results {
                         None => None,
                     };
 
-                    results.push(Result {
+                    results.push(MinionResult {
                         command: Some(command.to_string()),
                         host: host.clone(),
                         output: output,
-                        result: Some(result.to_string()),
+                        result: result,
                         retcode: retcode.clone(),
                     });
                 }
@@ -240,13 +275,13 @@ fn get_results(value: &Value) -> Results {
         };
     }
 
-    results
+    Ok(results)
 }
 
-fn get_compressed(results: Results) -> DataMap<Result, Vec<String>> {
+fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> {
     // compress output by changeing the hostname to the same value for all results and then just
     // adding all hosts with that value to the map.
-    let mut compressed: DataMap<Result, Vec<String>> = DataMap::new();
+    let mut compressed: DataMap<MinionResult, Vec<String>> = DataMap::new();
     for result in results {
         let mut result_no_host = result.clone();
         result_no_host.host = String::new();
@@ -257,7 +292,7 @@ fn get_compressed(results: Results) -> DataMap<Result, Vec<String>> {
     compressed
 }
 
-fn print_compressed(compressed: DataMap<Result, Vec<String>>, changed: bool) {
+fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: bool) {
     let mut unchanged = 0;
     for (result, hosts) in compressed {
         // continue if we only want to print out changes and there are none and the command was a
@@ -334,4 +369,13 @@ fn print_compressed(compressed: DataMap<Result, Vec<String>>, changed: bool) {
         println!("");
         info!("{} unchanged states", unchanged);
     }
+}
+
+fn write_save_file(host_data: String) {
+    let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
+    let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
+    save_file.write_all(host_data.as_bytes()).expect("can not write host data to save_file");
+    info!("please send me the save file under {} which contains the json \
+           data from salt",
+          save_filename);
 }

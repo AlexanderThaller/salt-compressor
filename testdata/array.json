@@ -1,0 +1,9 @@
+{
+  "minion": {
+    "retcode": 1,
+    "ret": [
+      "Pillar failed to render with the following messages:",
+      "Specified SLS 'sls' in environment 'base' is not available on the salt master"
+    ]
+  }
+}

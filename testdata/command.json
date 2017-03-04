@@ -1,0 +1,20 @@
+{
+  "minion": {
+    "retcode": 0,
+    "ret": {
+      "command_with_changes": {
+        "comment": "comment",
+        "changes": {
+          "diff": "--- \n+++ \n@@ -0,0 +0,10 @@\n+ added\n- removed"
+        }
+      },
+      "command_without_changes": {
+        "comment": "comment",
+        "changes": {}
+      },
+      "command_with_no_comment": {
+        "changes": {}
+      }
+    }
+  }
+}
