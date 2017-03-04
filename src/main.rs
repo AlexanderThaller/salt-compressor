@@ -465,7 +465,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
         // TODO: make this a filter of the map
         if changed && !result.output.is_some() && result.retcode.is_success() {
             unchanged += 1;
-            succeeded_hosts += 1;
+            succeeded_hosts += hosts.len();
             continue;
         }
 
