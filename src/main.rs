@@ -119,7 +119,7 @@ fn main() {
         Err(e) => {
             error!("can not get results from serde value: {}", e);
             if !no_save_file {
-                write_save_file(host_data);
+                write_save_file(host_data.as_str());
             }
             process::exit(1)
         }
@@ -309,7 +309,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
         // success
         // TODO: make this a filter of the map
         if changed && !result.output.is_some() && result.retcode.is_success() {
-            unchanged = unchanged + 1;
+            unchanged += 1;
             continue;
         }
 
@@ -381,7 +381,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
     }
 }
 
-fn write_save_file(host_data: String) {
+fn write_save_file(host_data: &str) {
     let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
     let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
     save_file.write_all(host_data.as_bytes()).expect("can not write host data to save_file");
