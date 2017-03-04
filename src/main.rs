@@ -244,11 +244,13 @@ fn get_compressed(results: Results) -> DataMap<Result, Vec<String>> {
 }
 
 fn print_compressed(compressed: DataMap<Result, Vec<String>>, changed: bool) {
+    let mut unchanged = 0;
     for (result, hosts) in compressed {
         // continue if we only want to print out changes and there are none and the command was a
         // success
         // TODO: make this a filter of the map
         if changed && !result.output.is_some() && result.retcode.is_success() {
+            unchanged = unchanged + 1;
             continue;
         }
 
@@ -312,5 +314,10 @@ fn print_compressed(compressed: DataMap<Result, Vec<String>>, changed: bool) {
             }
             println!("{}", "------".yellow());
         }
+    }
+
+    if changed {
+        println!("");
+        info!("{} unchanged states", unchanged);
     }
 }
