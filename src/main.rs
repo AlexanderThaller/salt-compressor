@@ -19,6 +19,7 @@ use log::LogLevel;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::BTreeMap as DataMap;
+use std::collections::BTreeSet as DataSet;
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
@@ -81,6 +82,11 @@ impl From<u64> for Retcode {
     }
 }
 
+struct Filter {
+    unchanged: bool,
+    command: Regex,
+}
+
 fn main() {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml)
@@ -94,8 +100,16 @@ fn main() {
         loggerv::init_with_level(loglevel).expect("can not initialize logger with parsed loglevel");
     }
 
-    let changed = matches.is_present("changed");
     let no_save_file = matches.is_present("no_save_file");
+
+    let filter_unchanged = matches.is_present("filter_unchanged");
+    let filter_command = value_t!(matches, "filter_command", Regex)
+        .expect("can not parse regex from filter_command");
+
+    let filter = Filter {
+        unchanged: filter_unchanged,
+        command: filter_command,
+    };
 
     let (host_data, no_return) = {
         let input_data = {
@@ -165,7 +179,7 @@ fn main() {
     let compressed = get_compressed(results);
     trace!("compressed: {:#?}", compressed);
 
-    print_compressed(compressed, changed);
+    print_compressed(compressed, &filter);
 }
 
 #[derive(Debug)]
@@ -460,18 +474,29 @@ fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> 
     compressed
 }
 
-fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: bool) {
+fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Filter) {
     let mut unchanged = 0;
-    let mut succeeded_hosts = 0;
-    let mut failed_hosts = 0;
+    let mut succeeded_hosts = DataSet::default();
+    let mut failed_hosts = DataSet::default();
+    let mut filtered = DataSet::default();
 
     for (result, hosts) in compressed {
         // continue if we only want to print out changes and there are none and the command was a
         // success
         // TODO: make this a filter of the map
-        if changed && !result.output.is_some() && result.retcode.is_success() {
+        if filter.unchanged && !result.output.is_some() && result.retcode.is_success() {
             unchanged += 1;
-            succeeded_hosts += hosts.len();
+            for host in hosts {
+                succeeded_hosts.insert(host);
+            }
+            continue;
+        }
+
+        if result.command.is_some() &&
+           !filter.command.is_match(result.command.clone().unwrap().as_str()) {
+            for host in hosts {
+                filtered.insert(host);
+            }
             continue;
         }
 
@@ -507,11 +532,15 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
 
             match result.retcode {
                 Retcode::Success => {
-                    succeeded_hosts += hosts.len();
+                    for host in hosts {
+                        succeeded_hosts.insert(host);
+                    }
                     println!("{}{}", "RETURN CODE: ".yellow(), "Success".green())
                 }
                 Retcode::Failure => {
-                    failed_hosts += hosts.len();
+                    for host in hosts {
+                        failed_hosts.insert(host);
+                    }
                     println!("{}{}", "RETURN CODE: ".yellow(), "Failure".red())
                 }
             }
@@ -543,31 +572,37 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, changed: boo
         }
     }
 
-    if changed {
-        println!("");
-        info!("filtered state{}: {}",
-              if unchanged > 1 || unchanged == 0 {
-                  "s"
-              } else {
-                  ""
-              },
-              unchanged);
-    }
+    println!("");
+    info!("filtered changed state{}: {}",
+          if unchanged > 1 || unchanged == 0 {
+              "s"
+          } else {
+              ""
+          },
+          unchanged);
+
+    info!("filtered command state{}: {}",
+          if filtered.len() > 1 || filtered.len() == 0 {
+              "s"
+          } else {
+              ""
+          },
+          filtered.len());
 
     info!("succeeded host{}: {}",
-          if succeeded_hosts > 1 || succeeded_hosts == 0 {
+          if succeeded_hosts.len() > 1 || succeeded_hosts.len() == 0 {
               "s"
           } else {
               ""
           },
-          succeeded_hosts);
+          succeeded_hosts.len());
     info!("failed host{}: {}",
-          if failed_hosts > 1 || failed_hosts == 0 {
+          if failed_hosts.len() > 1 || failed_hosts.len() == 0 {
               "s"
           } else {
               ""
           },
-          failed_hosts);
+          failed_hosts.len());
 }
 
 fn write_save_file(host_data: &str) {

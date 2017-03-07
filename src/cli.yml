@@ -23,11 +23,18 @@ args:
         takes_value: true
         value_name: "path"
         required: true
-    - changed:
-        help: "Only print states that have outputs"
-        long: "changed"
-        short: "c"
     - no_save_file:
         help: "Do not write save file on error"
         long: "no_save_file"
         short: "n"
+    - filter_unchanged:
+        help: "Only print states that have outputs"
+        long: "filter_changed"
+        short: "U"
+    - filter_command:
+        help: "Only print states that have commands that match the given regex"
+        long: "filter_command"
+        short: "C"
+        takes_value: true
+        default_value: ".*"
+        value_name: "regex"
