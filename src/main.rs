@@ -82,9 +82,14 @@ impl From<u64> for Retcode {
     }
 }
 
+#[derive(Debug)]
 struct Filter {
-    unchanged: bool,
     command: Regex,
+    failed: bool,
+    output: Regex,
+    result: Regex,
+    succeeded: bool,
+    unchanged: bool,
 }
 
 fn main() {
@@ -102,14 +107,26 @@ fn main() {
 
     let no_save_file = matches.is_present("no_save_file");
 
+    let filter_failed = matches.is_present("filter_failed");
+    let filter_succeeded = matches.is_present("filter_succeeded");
     let filter_unchanged = matches.is_present("filter_unchanged");
     let filter_command = value_t!(matches, "filter_command", Regex)
         .expect("can not parse regex from filter_command");
+    let filter_result = value_t!(matches, "filter_result", Regex)
+        .expect("can not parse regex from filter_result");
+    let filter_output = value_t!(matches, "filter_output", Regex)
+        .expect("can not parse regex from filter_output");
 
     let filter = Filter {
-        unchanged: filter_unchanged,
         command: filter_command,
+        failed: filter_failed,
+        output: filter_output,
+        result: filter_result,
+        succeeded: filter_succeeded,
+        unchanged: filter_unchanged,
     };
+
+    trace!("filter: {:#?}", filter);
 
     let (host_data, no_return) = {
         let input_data = {
@@ -475,27 +492,59 @@ fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> 
 }
 
 fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Filter) {
-    let mut unchanged = 0;
     let mut succeeded_hosts = DataSet::default();
     let mut failed_hosts = DataSet::default();
-    let mut filtered = DataSet::default();
+
+    let mut filter_command = DataSet::default();
+    let mut filter_failed = DataSet::default();
+    let mut filter_result = DataSet::default();
+    let mut filter_output = DataSet::default();
+    let mut filter_succeeded = DataSet::default();
+    let mut filter_unchanged = 0;
 
     for (result, hosts) in compressed {
         // continue if we only want to print out changes and there are none and the command was a
         // success
         // TODO: make this a filter of the map
-        if filter.unchanged && !result.output.is_some() && result.retcode.is_success() {
-            unchanged += 1;
+        if filter.succeeded && !result.retcode.is_success() {
             for host in hosts {
-                succeeded_hosts.insert(host);
+                filter_failed.insert(host);
             }
+            continue;
+        }
+
+        if filter.failed && result.retcode.is_success() {
+            for host in hosts {
+                filter_succeeded.insert(host);
+            }
+            continue;
+        }
+
+        if filter.unchanged && !result.output.is_some() && result.retcode.is_success() {
+            filter_unchanged += 1;
             continue;
         }
 
         if result.command.is_some() &&
            !filter.command.is_match(result.command.clone().unwrap().as_str()) {
             for host in hosts {
-                filtered.insert(host);
+                filter_command.insert(host);
+            }
+            continue;
+        }
+
+        if result.result.is_some() &&
+           !filter.result.is_match(result.result.clone().unwrap().as_str()) {
+            for host in hosts {
+                filter_result.insert(host);
+            }
+            continue;
+        }
+
+        if result.output.is_some() &&
+           !filter.output.is_match(result.output.clone().unwrap().as_str()) {
+            for host in hosts {
+                filter_output.insert(host);
             }
             continue;
         }
@@ -573,21 +622,13 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
     }
 
     println!("");
-    info!("filtered changed state{}: {}",
-          if unchanged > 1 || unchanged == 0 {
-              "s"
-          } else {
-              ""
-          },
-          unchanged);
 
-    info!("filtered command state{}: {}",
-          if filtered.len() > 1 || filtered.len() == 0 {
-              "s"
-          } else {
-              ""
-          },
-          filtered.len());
+    print_filter_statistics("command", filter_command.len());
+    print_filter_statistics("result", filter_result.len());
+    print_filter_statistics("output", filter_output.len());
+    print_filter_statistics("failed", filter_failed.len());
+    print_filter_statistics("succeeded", filter_succeeded.len());
+    print_filter_statistics("changed", filter_unchanged);
 
     info!("succeeded host{}: {}",
           if succeeded_hosts.len() > 1 || succeeded_hosts.len() == 0 {
@@ -603,6 +644,13 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
               ""
           },
           failed_hosts.len());
+}
+
+fn print_filter_statistics(stats: &str, count: usize) {
+    info!("filtered {} state{}: {}",
+          stats,
+          if count > 1 || count == 0 { "s" } else { "" },
+          count);
 }
 
 fn write_save_file(host_data: &str) {

@@ -29,7 +29,7 @@ args:
         short: "n"
     - filter_unchanged:
         help: "Only print states that have outputs"
-        long: "filter_changed"
+        long: "filter_unchanged"
         short: "U"
     - filter_command:
         help: "Only print states that have commands that match the given regex"
@@ -38,3 +38,25 @@ args:
         takes_value: true
         default_value: ".*"
         value_name: "regex"
+    - filter_result:
+        help: "Only print states that have results that match the given regex"
+        long: "filter_result"
+        short: "R"
+        takes_value: true
+        default_value: ".*"
+        value_name: "regex"
+    - filter_output:
+        help: "Only print states that have outputs that match the given regex"
+        long: "filter_output"
+        short: "O"
+        takes_value: true
+        default_value: ".*"
+        value_name: "regex"
+    - filter_failed:
+        help: "Only print states that failed"
+        long: "filter_failed"
+        short: "F"
+    - filter_succeeded:
+        help: "Only print states that succeeded"
+        long: "filter_succeeded"
+        short: "S"

@@ -8,6 +8,12 @@
           "diff": "--- \n+++ \n@@ -0,0 +0,10 @@\n+ added\n- removed"
         }
       },
+      "command_with_changes2": {
+        "comment": "comment",
+        "changes": {
+          "diff": "this is another change"
+        }
+      },
       "command_without_changes": {
         "comment": "comment",
         "changes": {}
