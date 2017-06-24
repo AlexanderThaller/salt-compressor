@@ -204,7 +204,6 @@ enum ResultError {
     ConvertDiffToString,
     ConvertValueToString,
     ReturnCodeNotNumber,
-    RetValueIsNone,
     RetValueIsNull,
     RetValueIsNumber,
     ValueNotAnObject,
@@ -216,7 +215,6 @@ impl fmt::Display for ResultError {
             ResultError::ConvertDiffToString => write!(f, "can not convert diff to string"),
             ResultError::ConvertValueToString => write!(f, "can not convert value to string"),
             ResultError::ReturnCodeNotNumber => write!(f, "returncode is not a number"),
-            ResultError::RetValueIsNone => write!(f, "ret value is none"),
             ResultError::RetValueIsNull => write!(f, "ret value is null"),
             ResultError::RetValueIsNumber => write!(f, "ret value is number"),
             ResultError::ValueNotAnObject => write!(f, "value it not an object"),
@@ -249,8 +247,8 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
         };
 
         let ret = match values.get("ret") {
-            None => return Err(ResultError::RetValueIsNone),
             Some(r) => r,
+            None => values,
         };
 
         match *ret {
