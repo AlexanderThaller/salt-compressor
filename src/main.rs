@@ -484,6 +484,30 @@ mod test_get_results {
 
         assert_eq!(got, expected);
     }
+
+    #[test]
+    fn not_ret_array() {
+        let input = include_str!("../testdata/no_ret_array.json");
+        let value: Value = serde_json::from_str(input).unwrap();
+
+        let got = match get_results(&value, Vec::new()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+
+        let mut expected = Vec::new();
+        expected.push(MinionResult {
+                          host: "minion".to_string(),
+                          retcode: Retcode::Failure,
+                          result: Some("line1\nline2\nline3".to_string()),
+                          ..MinionResult::default()
+                      });
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
 }
 
 fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> {
