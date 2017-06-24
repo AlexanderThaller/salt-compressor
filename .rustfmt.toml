@@ -1,0 +1,8 @@
+normalize_comments      = true
+reorder_imported_names  = true
+reorder_imports         = true
+report_fixme            = "Always"
+report_todo             = "Always"
+take_source_hints       = true
+use_try_shorthand       = true
+wrap_comments           = true

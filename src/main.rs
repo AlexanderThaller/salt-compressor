@@ -100,8 +100,8 @@ fn main() {
     trace!("matches: {:?}", matches);
 
     {
-        let loglevel: LogLevel = value_t!(matches, "loglevel", LogLevel)
-            .expect("can not parse loglevel from args");
+        let loglevel: LogLevel =
+            value_t!(matches, "loglevel", LogLevel).expect("can not parse loglevel from args");
         loggerv::init_with_level(loglevel).expect("can not initialize logger with parsed loglevel");
     }
 
@@ -112,10 +112,10 @@ fn main() {
     let filter_unchanged = matches.is_present("filter_unchanged");
     let filter_command = value_t!(matches, "filter_command", Regex)
         .expect("can not parse regex from filter_command");
-    let filter_result = value_t!(matches, "filter_result", Regex)
-        .expect("can not parse regex from filter_result");
-    let filter_output = value_t!(matches, "filter_output", Regex)
-        .expect("can not parse regex from filter_output");
+    let filter_result =
+        value_t!(matches, "filter_result", Regex).expect("can not parse regex from filter_result");
+    let filter_output =
+        value_t!(matches, "filter_output", Regex).expect("can not parse regex from filter_output");
 
     let filter = Filter {
         command: filter_command,
@@ -130,18 +130,23 @@ fn main() {
 
     let (host_data, no_return) = {
         let input_data = {
-            let input = matches.value_of("input").expect("can not get input file from args");
+            let input = matches
+                .value_of("input")
+                .expect("can not get input file from args");
 
             match input {
                 "-" => {
                     let mut buffer = String::new();
-                    io::stdin().read_to_string(&mut buffer).expect("can not read from stdin");
+                    io::stdin()
+                        .read_to_string(&mut buffer)
+                        .expect("can not read from stdin");
                     buffer
                 }
                 _ => {
                     let mut file = File::open(input).expect("can not open input file");
                     let mut input = String::new();
-                    file.read_to_string(&mut input).expect("can not read input file to string");
+                    file.read_to_string(&mut input)
+                        .expect("can not read input file to string");
                     input
                 }
             }
@@ -150,7 +155,8 @@ fn main() {
         let mut no_return = Vec::new();
 
         // match all hosts that have not returned as they are not in the json data
-        // format is normally like "Minion pricesearch did not respond. No job will be sent."
+        // format is normally like "Minion pricesearch did not respond. No job will be
+        // sent."
         let catch_not_returned_minions =
             Regex::new(r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$")
                 .expect("regex for catching not returned minions is not valid");
@@ -158,7 +164,8 @@ fn main() {
         for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
             no_return.push(host[1].to_string());
         }
-        let input_data = catch_not_returned_minions.replace_all(input_data.as_str(), "")
+        let input_data = catch_not_returned_minions
+            .replace_all(input_data.as_str(), "")
             .into_owned();
 
         let no_return_received = "ERROR: No return received";
@@ -257,41 +264,44 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
                 let result = Some(r.to_string());
 
                 results.push(MinionResult {
-                    host: host.clone(),
-                    result: result,
-                    retcode: retcode,
-                    ..MinionResult::default()
-                });
+                                 host: host.clone(),
+                                 result: result,
+                                 retcode: retcode,
+                                 ..MinionResult::default()
+                             });
             }
             Value::Number(_) => return Err(ResultError::RetValueIsNumber),
             Value::String(ref r) => {
                 results.push(MinionResult {
-                    host: host.clone(),
-                    result: Some(r.clone()),
-                    retcode: retcode,
-                    ..MinionResult::default()
-                });
+                                 host: host.clone(),
+                                 result: Some(r.clone()),
+                                 retcode: retcode,
+                                 ..MinionResult::default()
+                             });
             }
 
             Value::Array(ref r) => {
                 let values: Vec<_> = r.iter()
-                    .map(|v| v.as_str().expect("can not convert the array value to a string"))
+                    .map(|v| {
+                             v.as_str()
+                                 .expect("can not convert the array value to a string")
+                         })
                     .collect();
 
                 results.push(MinionResult {
-                    host: host.clone(),
-                    result: Some(values.join("\n").to_string()),
-                    retcode: retcode,
-                    ..MinionResult::default()
-                });
+                                 host: host.clone(),
+                                 result: Some(values.join("\n").to_string()),
+                                 retcode: retcode,
+                                 ..MinionResult::default()
+                             });
             }
             Value::Object(ref r) => {
                 if r.is_empty() {
                     results.push(MinionResult {
-                        host: host.clone(),
-                        retcode: retcode.clone(),
-                        ..MinionResult::default()
-                    });
+                                     host: host.clone(),
+                                     retcode: retcode.clone(),
+                                     ..MinionResult::default()
+                                 });
                 }
 
                 for (command, command_result) in r.iter() {
@@ -324,12 +334,12 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
                     };
 
                     results.push(MinionResult {
-                        command: Some(command.to_string()),
-                        host: host.clone(),
-                        output: output,
-                        result: result,
-                        retcode: retcode.clone(),
-                    });
+                                     command: Some(command.to_string()),
+                                     host: host.clone(),
+                                     output: output,
+                                     result: result,
+                                     retcode: retcode.clone(),
+                                 });
                 }
             }
         };
@@ -337,11 +347,11 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
 
     for host in no_return {
         results.push(MinionResult {
-            host: host,
-            retcode: Retcode::Failure,
-            output: Some("Minion did not respond. No job will be sent.".to_string()),
-            ..MinionResult::default()
-        });
+                         host: host,
+                         retcode: Retcode::Failure,
+                         output: Some("Minion did not respond. No job will be sent.".to_string()),
+                         ..MinionResult::default()
+                     });
     }
 
     Ok(results)
@@ -350,10 +360,10 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
 #[cfg(test)]
 mod test_get_results {
     extern crate serde_json;
-    use serde_json::Value;
-    use get_results;
-    use Retcode;
     use MinionResult;
+    use Retcode;
+    use get_results;
+    use serde_json::Value;
 
     #[test]
     #[should_panic(expected = "value it not an object")]
@@ -394,11 +404,12 @@ mod test_get_results {
         let mut expected = Vec::new();
         for host in failed_hosts {
             expected.push(MinionResult {
-                host: host,
-                retcode: Retcode::Failure,
-                output: Some("Minion did not respond. No job will be sent.".to_string()),
-                ..MinionResult::default()
-            });
+                              host: host,
+                              retcode: Retcode::Failure,
+                              output: Some("Minion did not respond. No job will be sent."
+                                               .to_string()),
+                              ..MinionResult::default()
+                          });
         }
 
         trace!("got: {:#?}", got);
@@ -419,11 +430,11 @@ mod test_get_results {
 
         let mut expected = Vec::new();
         expected.push(MinionResult {
-            host: "minion".to_string(),
-            retcode: Retcode::Failure,
-            result: Some("line1\nline2\nline3".to_string()),
-            ..MinionResult::default()
-        });
+                          host: "minion".to_string(),
+                          retcode: Retcode::Failure,
+                          result: Some("line1\nline2\nline3".to_string()),
+                          ..MinionResult::default()
+                      });
 
         trace!("got: {:#?}", got);
         trace!("expected: {:#?}", expected);
@@ -455,17 +466,17 @@ mod test_get_results {
 
         let mut expected = Vec::new();
         expected.push(MinionResult {
-            host: "minion".to_string(),
-            retcode: Retcode::Success,
-            result: Some("true".to_string()),
-            ..MinionResult::default()
-        });
+                          host: "minion".to_string(),
+                          retcode: Retcode::Success,
+                          result: Some("true".to_string()),
+                          ..MinionResult::default()
+                      });
         expected.push(MinionResult {
-            host: "minion_fail".to_string(),
-            retcode: Retcode::Failure,
-            result: Some("false".to_string()),
-            ..MinionResult::default()
-        });
+                          host: "minion_fail".to_string(),
+                          retcode: Retcode::Failure,
+                          result: Some("false".to_string()),
+                          ..MinionResult::default()
+                      });
         expected.sort();
 
         trace!("got: {:#?}", got);
@@ -476,14 +487,18 @@ mod test_get_results {
 }
 
 fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> {
-    // compress output by changeing the hostname to the same value for all results and then just
+    // compress output by changeing the hostname to the same value for all results
+    // and then just
     // adding all hosts with that value to the map.
     let mut compressed: DataMap<MinionResult, Vec<String>> = DataMap::new();
     for result in results {
         let mut result_no_host = result.clone();
         result_no_host.host = String::new();
 
-        compressed.entry(result_no_host).or_insert_with(Vec::new).push(result.host);
+        compressed
+            .entry(result_no_host)
+            .or_insert_with(Vec::new)
+            .push(result.host);
     }
 
     compressed
@@ -501,7 +516,8 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
     let mut filter_unchanged = 0;
 
     for (result, hosts) in compressed {
-        // continue if we only want to print out changes and there are none and the command was a
+        // continue if we only want to print out changes and there are none and the
+        // command was a
         // success
         // TODO: make this a filter of the map
         if filter.succeeded && !result.retcode.is_success() {
@@ -524,7 +540,9 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
         }
 
         if result.command.is_some() &&
-           !filter.command.is_match(result.command.clone().unwrap().as_str()) {
+           !filter
+                .command
+                .is_match(result.command.clone().unwrap().as_str()) {
             for host in hosts {
                 filter_command.insert(host);
             }
@@ -532,7 +550,9 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
         }
 
         if result.result.is_some() &&
-           !filter.result.is_match(result.result.clone().unwrap().as_str()) {
+           !filter
+                .result
+                .is_match(result.result.clone().unwrap().as_str()) {
             for host in hosts {
                 filter_result.insert(host);
             }
@@ -540,7 +560,9 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
         }
 
         if result.output.is_some() &&
-           !filter.output.is_match(result.output.clone().unwrap().as_str()) {
+           !filter
+                .output
+                .is_match(result.output.clone().unwrap().as_str()) {
             for host in hosts {
                 filter_output.insert(host);
             }
@@ -654,7 +676,9 @@ fn print_filter_statistics(stats: &str, count: usize) {
 fn write_save_file(host_data: &str) {
     let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
     let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
-    save_file.write_all(host_data.as_bytes()).expect("can not write host data to save_file");
+    save_file
+        .write_all(host_data.as_bytes())
+        .expect("can not write host data to save_file");
     info!("please send me the save file under {} which contains the json \
            data from salt",
           save_filename);
