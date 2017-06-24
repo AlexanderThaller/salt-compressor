@@ -1,6 +1,8 @@
 # salt-compressor
 Compress the output of saltstack-runs to make it easier to review changes that happen to a lot of servers.
 
+[![TravisCI Build Status](https://travis-ci.org/AlexanderThaller/salt-compressor.svg?branch=master)](https://travis-ci.org/AlexanderThaller/salt-compressor)
+
 # Usage
 ```
 salt-compressor 0.4.0
