@@ -675,14 +675,14 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
     print_filter_statistics("changed", filter_unchanged);
 
     info!("succeeded host{}: {}",
-          if succeeded_hosts.len() > 1 || succeeded_hosts.len() == 0 {
+          if succeeded_hosts.len() > 1 || succeeded_hosts.is_empty() {
               "s"
           } else {
               ""
           },
           succeeded_hosts.len());
     info!("failed host{}: {}",
-          if failed_hosts.len() > 1 || failed_hosts.len() == 0 {
+          if failed_hosts.len() > 1 || failed_hosts.is_empty() {
               "s"
           } else {
               ""
