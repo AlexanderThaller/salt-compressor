@@ -1,16 +1,16 @@
 [package]
 name = "salt-compressor"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Alexander Thaller <alexander.thaller@trivago.com>"]
 
 [dependencies]
-colored = "1.4"
-log = "0.3.6"
-loggerv = "0.2.0"
+colored = "1"
+log = "0.3"
+loggerv = "0.3"
 regex = "0.2"
-serde_json = "0.9"
+serde_json = "1"
 time = "0.1"
 
 [dependencies.clap]
-version = "2.20.5"
+version = "2"
 features = ["yaml"]
