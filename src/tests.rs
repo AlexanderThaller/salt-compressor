@@ -53,7 +53,7 @@ mod test_get_results {
     #[test]
     fn only_failed_hosts() {
         let input = include_str!("../testdata/only_failed_hosts.json");
-        let (input, _) = cleanup_input_data(input.to_owned());
+        let (input, _) = cleanup_input_data(input);
 
         let value: Value =
             serde_json::from_str(input.as_str()).expect("can not parse input to json");
@@ -85,7 +85,7 @@ mod test_get_results {
     #[test]
     fn duplicate_keys_hosts() {
         let input = include_str!("../testdata/duplicate_keys_hosts.json");
-        let (input, _) = cleanup_input_data(input.to_owned());
+        let (input, _) = cleanup_input_data(input);
 
         let value: Value =
             serde_json::from_str(input.as_str()).expect("can not parse input to json");

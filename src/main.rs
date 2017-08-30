@@ -137,7 +137,7 @@ fn main() {
         }
     };
 
-    let (host_data, failed_minions) = cleanup_input_data(input_data);
+    let (host_data, failed_minions) = cleanup_input_data(input_data.as_str());
 
     trace!("input: {}", host_data);
 
@@ -544,7 +544,7 @@ fn write_save_file(host_data: &str) {
 }
 
 fn cleanup_input_data<'a>(
-    input_data: String,
+    input_data: &str,
 ) -> (String, std::collections::BTreeMap<std::string::String, &'a str>) {
     let mut failed_minions = DataMap::default();
 
@@ -559,12 +559,12 @@ fn cleanup_input_data<'a>(
             ).expect("regex for catching not returned minions is not valid");
 
         let errmessage = "Minion did not respond. No job will be sent.";
-        for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
+        for host in catch_not_returned_minions.captures_iter(input_data) {
             failed_minions.insert(host[1].to_string(), errmessage);
         }
 
         let data = catch_not_returned_minions
-            .replace_all(input_data.as_str(), "")
+            .replace_all(input_data, "")
             .into_owned();
 
         // match all hosts that have a duplicate key in the system
@@ -575,15 +575,13 @@ fn cleanup_input_data<'a>(
             ).expect("regex for catching duplicate key minions is not valid");
 
         let errmessage = "Minion was already deleted from tracker, probably a duplicate key.";
-        for host in catch_duplicate_key_minions.captures_iter(input_data.as_str()) {
+        for host in catch_duplicate_key_minions.captures_iter(input_data) {
             failed_minions.insert(host[1].to_string(), errmessage);
         }
 
-        let data = catch_duplicate_key_minions
+        catch_duplicate_key_minions
             .replace_all(data.as_str(), "")
-            .into_owned();
-
-        data
+            .into_owned()
     };
 
     let no_return_received = "ERROR: No return received";
