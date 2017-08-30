@@ -1,6 +1,6 @@
 [root]
 name = "salt-compressor"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "clap 2.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",

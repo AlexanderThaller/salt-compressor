@@ -127,7 +127,7 @@ fn main() {
 
     trace!("filter: {:#?}", filter);
 
-    let (host_data, no_return) = {
+    let (host_data, failed_minions) = {
         let input_data = {
             let input = matches.value_of("input").expect(
                 "can not get input file from args",
@@ -152,33 +152,56 @@ fn main() {
             }
         };
 
-        let mut no_return = Vec::new();
+        let mut failed_minions = DataMap::default();
 
-        // match all hosts that have not returned as they are not in the json data
-        // format is normally like "Minion pricesearch did not respond. No job will be
-        // sent."
-        let catch_not_returned_minions =
-            Regex::new(
-                r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$",
-            ).expect("regex for catching not returned minions is not valid");
+        // Cleanup input data from minions that either didnt return or had a duplicate key
+        let input_data = {
+            // match all hosts that have not returned as they are not in the json data
+            // format is normally like "Minion minionid did not respond. No job will be
+            // sent."
+            let catch_not_returned_minions =
+                Regex::new(
+                    r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$",
+                ).expect("regex for catching not returned minions is not valid");
 
-        for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
-            no_return.push(host[1].to_string());
-        }
-        let input_data = catch_not_returned_minions
-            .replace_all(input_data.as_str(), "")
-            .into_owned();
+            let errmessage = "Minion did not respond. No job will be sent.";
+            for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
+                failed_minions.insert(host[1].to_string(), errmessage);
+            }
+
+            let data = catch_not_returned_minions
+                .replace_all(input_data.as_str(), "")
+                .into_owned();
+
+            // match all hosts that have a duplicate key in the system
+            // like "minion minionid was already deleted from tracker, probably a duplicate key"
+            let catch_duplicate_key_minions =
+                Regex::new(
+                    r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
+                ).expect("regex for catching duplicate key minions is not valid");
+
+            let errmessage = "Minion was already deleted from tracker, probably a duplicate key.";
+            for host in catch_duplicate_key_minions.captures_iter(input_data.as_str()) {
+                failed_minions.insert(host[1].to_string(), errmessage);
+            }
+
+            let data = catch_duplicate_key_minions
+                .replace_all(data.as_str(), "")
+                .into_owned();
+
+            data
+        };
 
         let no_return_received = "ERROR: No return received";
         let input_data = if input_data.contains(no_return_received) {
-            no_return.push('*'.to_string());
+            failed_minions.insert('*'.to_string(), "ERROR: No return received.");
             input_data.replace(no_return_received, "")
         } else {
             input_data
         };
 
         // clean up hosts that have not returned from the json data
-        (input_data, no_return)
+        (input_data, failed_minions)
     };
 
     trace!("input: {}", host_data);
@@ -200,7 +223,7 @@ fn main() {
 
     trace!("value: {}", value);
 
-    let results = match get_results(&value, no_return) {
+    let results = match get_results(&value, failed_minions) {
         Ok(r) => r,
         Err(e) => {
             error!("can not get results from serde value: {}", e);
@@ -242,7 +265,10 @@ impl fmt::Display for ResultError {
     }
 }
 
-fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, ResultError> {
+fn get_results(
+    value: &Value,
+    failed_minions: DataMap<String, &str>,
+) -> Result<MinionResults, ResultError> {
     if !value.is_object() {
         return Err(ResultError::ValueNotAnObject);
     }
@@ -359,11 +385,11 @@ fn get_results(value: &Value, no_return: Vec<String>) -> Result<MinionResults, R
         };
     }
 
-    for host in no_return {
+    for (host, message) in failed_minions {
         results.push(MinionResult {
             host: host,
             retcode: Retcode::Failure,
-            output: Some("Minion did not respond. No job will be sent.".to_string()),
+            output: Some(message.into()),
             ..MinionResult::default()
         });
     }
@@ -378,13 +404,14 @@ mod test_get_results {
     use Retcode;
     use get_results;
     use serde_json::Value;
+    use std::collections::BTreeMap as DataMap;
 
     #[test]
     #[should_panic(expected = "value it not an object")]
     fn value_not_an_object() {
         let value = Value::default();
 
-        match get_results(&value, Vec::new()) {
+        match get_results(&value, DataMap::default()) {
             Ok(_) => {}
             Err(e) => panic!(format!("{}", e)),
         }
@@ -394,7 +421,7 @@ mod test_get_results {
     fn empty_results() {
         let value: Value = serde_json::from_str("{}").unwrap();
 
-        let got = match get_results(&value, Vec::new()) {
+        let got = match get_results(&value, DataMap::default()) {
             Ok(r) => r,
             Err(e) => panic!("unexpected error: {}", e),
         };
@@ -408,35 +435,68 @@ mod test_get_results {
 
     #[test]
     fn only_failed_hosts() {
-        let value: Value = serde_json::from_str("{}").unwrap();
-        let failed_hosts = vec!["failed1".to_string(), "failed".to_string()];
+        let input = include_str!("../testdata/only_failed_hosts.json");
+        let value: Value = serde_json::from_str(input).expect("can not parse input to json");
+        let mut failed_hosts = DataMap::default();
+        failed_hosts.insert("failed1".into(), "").unwrap();
+        failed_hosts.insert("failed2".into(), "").unwrap();
 
         let got = match get_results(&value, failed_hosts.clone()) {
             Ok(r) => r,
             Err(e) => panic!("unexpected error: {}", e),
         };
         let mut expected = Vec::new();
-        for host in failed_hosts {
+        for (host, message) in failed_hosts {
             expected.push(MinionResult {
                 host: host,
                 retcode: Retcode::Failure,
-                output: Some("Minion did not respond. No job will be sent.".to_string()),
+                output: Some(message.into()),
                 ..MinionResult::default()
             });
         }
 
-        trace!("got: {:#?}", got);
-        trace!("expected: {:#?}", expected);
+        println!("got: {:#?}", got);
+        println!("expected: {:#?}", expected);
 
         assert_eq!(got, expected);
     }
+
+    #[test]
+    fn duplicate_keys_hosts() {
+        let input = include_str!("../testdata/duplicate_keys_hosts.json");
+        let value: Value = serde_json::from_str(input).expect("can not parse input to json");
+        let mut failed_hosts = DataMap::default();
+        failed_hosts.insert("failed1".into(), "");
+        failed_hosts.insert("failed2".into(), "");
+
+        let got = match get_results(&value, failed_hosts.clone()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+
+        let mut expected = Vec::new();
+        for (host, message) in failed_hosts {
+            expected.push(MinionResult {
+                host: host,
+                retcode: Retcode::Failure,
+                output: Some(message.to_string()),
+                ..MinionResult::default()
+            });
+        }
+
+        println!("got: {:#?}", got);
+        println!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
+
 
     #[test]
     fn array() {
         let input = include_str!("../testdata/array.json");
         let value: Value = serde_json::from_str(input).unwrap();
 
-        let got = match get_results(&value, Vec::new()) {
+        let got = match get_results(&value, DataMap::default()) {
             Ok(r) => r,
             Err(e) => panic!("unexpected error: {}", e),
         };
@@ -461,7 +521,7 @@ mod test_get_results {
         let input = include_str!("../testdata/array_weird.json");
         let value: Value = serde_json::from_str(input).unwrap();
 
-        match get_results(&value, Vec::new()) {
+        match get_results(&value, DataMap::default()) {
             Ok(_) => {}
             Err(e) => panic!(e),
         };
@@ -472,7 +532,7 @@ mod test_get_results {
         let input = include_str!("../testdata/bool.json");
         let value: Value = serde_json::from_str(input).unwrap();
 
-        let got = match get_results(&value, Vec::new()) {
+        let got = match get_results(&value, DataMap::default()) {
             Ok(r) => r,
             Err(e) => panic!("unexpected error: {}", e),
         };
@@ -503,7 +563,7 @@ mod test_get_results {
         let input = include_str!("../testdata/no_ret_array.json");
         let value: Value = serde_json::from_str(input).unwrap();
 
-        let got = match get_results(&value, Vec::new()) {
+        let got = match get_results(&value, DataMap::default()) {
             Ok(r) => r,
             Err(e) => panic!("unexpected error: {}", e),
         };
