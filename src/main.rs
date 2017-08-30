@@ -27,6 +27,9 @@ use std::io::Write;
 use std::process;
 use time::get_time;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 struct MinionResult {
     command: Option<String>,
@@ -47,23 +50,6 @@ enum Retcode {
 impl Retcode {
     fn is_success(&self) -> bool {
         self == &Retcode::Success
-    }
-}
-
-#[cfg(test)]
-mod test_retcode {
-    use Retcode;
-
-    #[test]
-    fn from_success() {
-        assert_eq!(Retcode::Success, 0.into())
-    }
-
-    #[test]
-    fn from_failure() {
-        for i in 1..10 {
-            assert_eq!(Retcode::Failure, i.into())
-        }
     }
 }
 
@@ -127,82 +113,31 @@ fn main() {
 
     trace!("filter: {:#?}", filter);
 
-    let (host_data, failed_minions) = {
-        let input_data = {
-            let input = matches.value_of("input").expect(
-                "can not get input file from args",
-            );
+    let input_data = {
+        let input = matches.value_of("input").expect(
+            "can not get input file from args",
+        );
 
-            match input {
-                "-" => {
-                    let mut buffer = String::new();
-                    io::stdin().read_to_string(&mut buffer).expect(
-                        "can not read from stdin",
-                    );
-                    buffer
-                }
-                _ => {
-                    let mut file = File::open(input).expect("can not open input file");
-                    let mut input = String::new();
-                    file.read_to_string(&mut input).expect(
-                        "can not read input file to string",
-                    );
-                    input
-                }
+        match input {
+            "-" => {
+                let mut buffer = String::new();
+                io::stdin().read_to_string(&mut buffer).expect(
+                    "can not read from stdin",
+                );
+                buffer
             }
-        };
-
-        let mut failed_minions = DataMap::default();
-
-        // Cleanup input data from minions that either didnt return or had a duplicate key
-        let input_data = {
-            // match all hosts that have not returned as they are not in the json data
-            // format is normally like "Minion minionid did not respond. No job will be
-            // sent."
-            let catch_not_returned_minions =
-                Regex::new(
-                    r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$",
-                ).expect("regex for catching not returned minions is not valid");
-
-            let errmessage = "Minion did not respond. No job will be sent.";
-            for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
-                failed_minions.insert(host[1].to_string(), errmessage);
+            _ => {
+                let mut file = File::open(input).expect("can not open input file");
+                let mut input = String::new();
+                file.read_to_string(&mut input).expect(
+                    "can not read input file to string",
+                );
+                input
             }
-
-            let data = catch_not_returned_minions
-                .replace_all(input_data.as_str(), "")
-                .into_owned();
-
-            // match all hosts that have a duplicate key in the system
-            // like "minion minionid was already deleted from tracker, probably a duplicate key"
-            let catch_duplicate_key_minions =
-                Regex::new(
-                    r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
-                ).expect("regex for catching duplicate key minions is not valid");
-
-            let errmessage = "Minion was already deleted from tracker, probably a duplicate key.";
-            for host in catch_duplicate_key_minions.captures_iter(input_data.as_str()) {
-                failed_minions.insert(host[1].to_string(), errmessage);
-            }
-
-            let data = catch_duplicate_key_minions
-                .replace_all(data.as_str(), "")
-                .into_owned();
-
-            data
-        };
-
-        let no_return_received = "ERROR: No return received";
-        let input_data = if input_data.contains(no_return_received) {
-            failed_minions.insert('*'.to_string(), "ERROR: No return received.");
-            input_data.replace(no_return_received, "")
-        } else {
-            input_data
-        };
-
-        // clean up hosts that have not returned from the json data
-        (input_data, failed_minions)
+        }
     };
+
+    let (host_data, failed_minions) = cleanup_input_data(input_data);
 
     trace!("input: {}", host_data);
 
@@ -395,192 +330,6 @@ fn get_results(
     }
 
     Ok(results)
-}
-
-#[cfg(test)]
-mod test_get_results {
-    extern crate serde_json;
-    use MinionResult;
-    use Retcode;
-    use get_results;
-    use serde_json::Value;
-    use std::collections::BTreeMap as DataMap;
-
-    #[test]
-    #[should_panic(expected = "value it not an object")]
-    fn value_not_an_object() {
-        let value = Value::default();
-
-        match get_results(&value, DataMap::default()) {
-            Ok(_) => {}
-            Err(e) => panic!(format!("{}", e)),
-        }
-    }
-
-    #[test]
-    fn empty_results() {
-        let value: Value = serde_json::from_str("{}").unwrap();
-
-        let got = match get_results(&value, DataMap::default()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-        let expected = Vec::new();
-
-        trace!("got: {:#?}", got);
-        trace!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
-
-    #[test]
-    fn only_failed_hosts() {
-        let input = include_str!("../testdata/only_failed_hosts.json");
-        let value: Value = serde_json::from_str(input).expect("can not parse input to json");
-        let mut failed_hosts = DataMap::default();
-        failed_hosts.insert("failed1".into(), "").unwrap();
-        failed_hosts.insert("failed2".into(), "").unwrap();
-
-        let got = match get_results(&value, failed_hosts.clone()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-        let mut expected = Vec::new();
-        for (host, message) in failed_hosts {
-            expected.push(MinionResult {
-                host: host,
-                retcode: Retcode::Failure,
-                output: Some(message.into()),
-                ..MinionResult::default()
-            });
-        }
-
-        println!("got: {:#?}", got);
-        println!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
-
-    #[test]
-    fn duplicate_keys_hosts() {
-        let input = include_str!("../testdata/duplicate_keys_hosts.json");
-        let value: Value = serde_json::from_str(input).expect("can not parse input to json");
-        let mut failed_hosts = DataMap::default();
-        failed_hosts.insert("failed1".into(), "");
-        failed_hosts.insert("failed2".into(), "");
-
-        let got = match get_results(&value, failed_hosts.clone()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-
-        let mut expected = Vec::new();
-        for (host, message) in failed_hosts {
-            expected.push(MinionResult {
-                host: host,
-                retcode: Retcode::Failure,
-                output: Some(message.to_string()),
-                ..MinionResult::default()
-            });
-        }
-
-        println!("got: {:#?}", got);
-        println!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
-
-
-    #[test]
-    fn array() {
-        let input = include_str!("../testdata/array.json");
-        let value: Value = serde_json::from_str(input).unwrap();
-
-        let got = match get_results(&value, DataMap::default()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-
-        let mut expected = Vec::new();
-        expected.push(MinionResult {
-            host: "minion".to_string(),
-            retcode: Retcode::Failure,
-            result: Some("line1\nline2\nline3".to_string()),
-            ..MinionResult::default()
-        });
-
-        trace!("got: {:#?}", got);
-        trace!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
-
-    #[test]
-    #[should_panic(expected = "can not convert the array value to a string")]
-    fn array_weird() {
-        let input = include_str!("../testdata/array_weird.json");
-        let value: Value = serde_json::from_str(input).unwrap();
-
-        match get_results(&value, DataMap::default()) {
-            Ok(_) => {}
-            Err(e) => panic!(e),
-        };
-    }
-
-    #[test]
-    fn bool() {
-        let input = include_str!("../testdata/bool.json");
-        let value: Value = serde_json::from_str(input).unwrap();
-
-        let got = match get_results(&value, DataMap::default()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-
-        let mut expected = Vec::new();
-        expected.push(MinionResult {
-            host: "minion".to_string(),
-            retcode: Retcode::Success,
-            result: Some("true".to_string()),
-            ..MinionResult::default()
-        });
-        expected.push(MinionResult {
-            host: "minion_fail".to_string(),
-            retcode: Retcode::Failure,
-            result: Some("false".to_string()),
-            ..MinionResult::default()
-        });
-        expected.sort();
-
-        trace!("got: {:#?}", got);
-        trace!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
-
-    #[test]
-    fn not_ret_array() {
-        let input = include_str!("../testdata/no_ret_array.json");
-        let value: Value = serde_json::from_str(input).unwrap();
-
-        let got = match get_results(&value, DataMap::default()) {
-            Ok(r) => r,
-            Err(e) => panic!("unexpected error: {}", e),
-        };
-
-        let mut expected = Vec::new();
-        expected.push(MinionResult {
-            host: "minion".to_string(),
-            retcode: Retcode::Failure,
-            result: Some("line1\nline2\nline3".to_string()),
-            ..MinionResult::default()
-        });
-
-        trace!("got: {:#?}", got);
-        trace!("expected: {:#?}", expected);
-
-        assert_eq!(got, expected);
-    }
 }
 
 fn get_compressed(results: MinionResults) -> DataMap<MinionResult, Vec<String>> {
@@ -792,4 +541,59 @@ fn write_save_file(host_data: &str) {
            data from salt",
         save_filename
     );
+}
+
+fn cleanup_input_data<'a>(
+    input_data: String,
+) -> (String, std::collections::BTreeMap<std::string::String, &'a str>) {
+    let mut failed_minions = DataMap::default();
+
+    // Cleanup input data from minions that either didnt return or had a duplicate key
+    let input_data = {
+        // match all hosts that have not returned as they are not in the json data
+        // format is normally like "Minion minionid did not respond. No job will be
+        // sent."
+        let catch_not_returned_minions =
+            Regex::new(
+                r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$",
+            ).expect("regex for catching not returned minions is not valid");
+
+        let errmessage = "Minion did not respond. No job will be sent.";
+        for host in catch_not_returned_minions.captures_iter(input_data.as_str()) {
+            failed_minions.insert(host[1].to_string(), errmessage);
+        }
+
+        let data = catch_not_returned_minions
+            .replace_all(input_data.as_str(), "")
+            .into_owned();
+
+        // match all hosts that have a duplicate key in the system
+        // like "minion minionid was already deleted from tracker, probably a duplicate key"
+        let catch_duplicate_key_minions =
+            Regex::new(
+                r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
+            ).expect("regex for catching duplicate key minions is not valid");
+
+        let errmessage = "Minion was already deleted from tracker, probably a duplicate key.";
+        for host in catch_duplicate_key_minions.captures_iter(input_data.as_str()) {
+            failed_minions.insert(host[1].to_string(), errmessage);
+        }
+
+        let data = catch_duplicate_key_minions
+            .replace_all(data.as_str(), "")
+            .into_owned();
+
+        data
+    };
+
+    let no_return_received = "ERROR: No return received";
+    let input_data = if input_data.contains(no_return_received) {
+        failed_minions.insert('*'.to_string(), "ERROR: No return received.");
+        input_data.replace(no_return_received, "")
+    } else {
+        input_data
+    };
+
+    // clean up hosts that have not returned from the json data
+    (input_data, failed_minions)
 }
