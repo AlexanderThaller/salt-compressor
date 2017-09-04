@@ -1,0 +1,29 @@
+{
+    "minion1": {
+        "retcode": 0,
+        "ret": {
+            "package": {
+                "new": "",
+                "old": "version1"
+            }
+        }
+    },
+    "minion2": {
+        "retcode": 0,
+        "ret": {
+            "package": {
+                "new": "",
+                "old": "version1"
+            }
+        }
+    },
+    "minion3": {
+        "retcode": 0,
+        "ret": {
+            "package": {
+                "new": "",
+                "old": "version2"
+            }
+        }
+    }
+}

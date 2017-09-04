@@ -206,4 +206,46 @@ mod test_get_results {
 
         assert_eq!(got, expected);
     }
+
+    #[test]
+    fn old_new_values_in_ret() {
+        let input = include_str!("../testdata/old_new_values_in_ret.json");
+        let value: Value = serde_json::from_str(input).unwrap();
+
+        let got = match get_results(&value, DataMap::default()) {
+            Ok(r) => r,
+            Err(e) => panic!("unexpected error: {}", e),
+        };
+
+        let mut expected = Vec::new();
+        expected.push(MinionResult {
+            host: "minion1".to_string(),
+            retcode: Retcode::Success,
+            new: Some("".into()),
+            old: Some("version1".into()),
+            command: Some("package".into()),
+            ..MinionResult::default()
+        });
+        expected.push(MinionResult {
+            host: "minion2".to_string(),
+            retcode: Retcode::Success,
+            new: Some("".into()),
+            old: Some("version1".into()),
+            command: Some("package".into()),
+            ..MinionResult::default()
+        });
+        expected.push(MinionResult {
+            host: "minion3".to_string(),
+            retcode: Retcode::Success,
+            new: Some("".into()),
+            old: Some("version2".into()),
+            command: Some("package".into()),
+            ..MinionResult::default()
+        });
+
+        trace!("got: {:#?}", got);
+        trace!("expected: {:#?}", expected);
+
+        assert_eq!(got, expected);
+    }
 }

@@ -37,6 +37,8 @@ struct MinionResult {
     output: Option<String>,
     result: Option<String>,
     host: String,
+    new: Option<String>,
+    old: Option<String>,
 }
 
 type MinionResults = Vec<MinionResult>;
@@ -185,6 +187,8 @@ enum ResultError {
     RetValueIsNull,
     RetValueIsNumber,
     ValueNotAnObject,
+    OldIsNotAString,
+    NewIsNotAString,
 }
 
 impl fmt::Display for ResultError {
@@ -196,6 +200,8 @@ impl fmt::Display for ResultError {
             ResultError::RetValueIsNull => write!(f, "ret value is null"),
             ResultError::RetValueIsNumber => write!(f, "ret value is number"),
             ResultError::ValueNotAnObject => write!(f, "value it not an object"),
+            ResultError::OldIsNotAString => write!(f, "old is not a string"),
+            ResultError::NewIsNotAString => write!(f, "new is not a string"),
         }
     }
 }
@@ -308,12 +314,34 @@ fn get_results(
                         None => None,
                     };
 
+                    let old = match command_result.get("old") {
+                        Some(r) => {
+                            match r.as_str() {
+                                Some(s) => Some(s.to_string()),
+                                None => return Err(ResultError::OldIsNotAString),
+                            }
+                        }
+                        None => None,
+                    };
+
+                    let new = match command_result.get("new") {
+                        Some(r) => {
+                            match r.as_str() {
+                                Some(s) => Some(s.to_string()),
+                                None => return Err(ResultError::NewIsNotAString),
+                            }
+                        }
+                        None => None,
+                    };
+
                     results.push(MinionResult {
                         command: Some(command.to_string()),
                         host: host.clone(),
                         output: output,
                         result: result,
                         retcode: retcode.clone(),
+                        new: new,
+                        old: old,
                     });
                 }
             }
@@ -472,7 +500,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
 
             println!("{}", "OUTPUT:".yellow());
             if result.output.is_some() {
-                for line in result.output.unwrap().lines() {
+                for line in result.output.clone().unwrap().lines() {
                     if line.starts_with('-') {
                         println!("{}", line.red());
                         continue;
@@ -485,7 +513,17 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
 
                     println!("{}", line);
                 }
-            } else {
+            }
+
+            if result.old.is_some() {
+                println!("Old: {}", result.old.clone().unwrap());
+            }
+
+            if result.new.is_some() {
+                println!("New: {}", result.new.clone().unwrap());
+            }
+
+            if result.output.is_none() && result.old.is_none() && result.new.is_none() {
                 println!("No changes");
             }
             println!("{}", "------".yellow());
