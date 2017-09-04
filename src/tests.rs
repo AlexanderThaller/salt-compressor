@@ -221,24 +221,21 @@ mod test_get_results {
         expected.push(MinionResult {
             host: "minion1".to_string(),
             retcode: Retcode::Success,
-            new: Some("".into()),
-            old: Some("version1".into()),
+            output: Some("Old: version1\nNew: \n".to_string()),
             command: Some("package".into()),
             ..MinionResult::default()
         });
         expected.push(MinionResult {
             host: "minion2".to_string(),
             retcode: Retcode::Success,
-            new: Some("".into()),
-            old: Some("version1".into()),
+            output: Some("Old: version1\nNew: \n".to_string()),
             command: Some("package".into()),
             ..MinionResult::default()
         });
         expected.push(MinionResult {
             host: "minion3".to_string(),
             retcode: Retcode::Success,
-            new: Some("".into()),
-            old: Some("version2".into()),
+            output: Some("Old: version2\nNew: \n".to_string()),
             command: Some("package".into()),
             ..MinionResult::default()
         });

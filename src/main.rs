@@ -37,8 +37,6 @@ struct MinionResult {
     output: Option<String>,
     result: Option<String>,
     host: String,
-    new: Option<String>,
-    old: Option<String>,
 }
 
 type MinionResults = Vec<MinionResult>;
@@ -299,21 +297,6 @@ fn get_results(
                         None => None,
                     };
 
-                    let output = match command_result.get("changes") {
-                        Some(r) => {
-                            match r.get("diff") {
-                                Some(d) => {
-                                    match d.as_str() {
-                                        Some(i) => Some(i.to_string()),
-                                        None => return Err(ResultError::ConvertDiffToString),
-                                    }
-                                }
-                                None => None,
-                            }
-                        }
-                        None => None,
-                    };
-
                     let old = match command_result.get("old") {
                         Some(r) => {
                             match r.as_str() {
@@ -334,14 +317,51 @@ fn get_results(
                         None => None,
                     };
 
+                    let output = match command_result.get("changes") {
+                        Some(r) => {
+                            match r.get("diff") {
+                                Some(d) => {
+                                    match d.as_str() {
+                                        Some(i) => Some(i.to_string()),
+                                        None => return Err(ResultError::ConvertDiffToString),
+                                    }
+                                }
+                                None => None,
+                            }
+                        }
+                        None => None,
+                    };
+
+                    let output = if old.is_some() {
+                        match output {
+                            Some(mut s) => {
+                                s.push_str(format!("Old: {}\n", old.unwrap()).as_str());
+                                Some(s)
+                            }
+                            None => Some(format!("Old: {}\n", old.unwrap())),
+                        }
+                    } else {
+                        output
+                    };
+
+                    let output = if new.is_some() {
+                        match output {
+                            Some(mut s) => {
+                                s.push_str(format!("New: {}\n", new.unwrap()).as_str());
+                                Some(s)
+                            }
+                            None => Some(format!("New: {}\n", new.unwrap())),
+                        }
+                    } else {
+                        output
+                    };
+
                     results.push(MinionResult {
                         command: Some(command.to_string()),
                         host: host.clone(),
                         output: output,
                         result: result,
                         retcode: retcode.clone(),
-                        new: new,
-                        old: old,
                     });
                 }
             }
@@ -500,7 +520,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
 
             println!("{}", "OUTPUT:".yellow());
             if result.output.is_some() {
-                for line in result.output.clone().unwrap().lines() {
+                for line in result.output.unwrap().lines() {
                     if line.starts_with('-') {
                         println!("{}", line.red());
                         continue;
@@ -513,17 +533,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
 
                     println!("{}", line);
                 }
-            }
-
-            if result.old.is_some() {
-                println!("Old: {}", result.old.clone().unwrap());
-            }
-
-            if result.new.is_some() {
-                println!("New: {}", result.new.clone().unwrap());
-            }
-
-            if result.output.is_none() && result.old.is_none() && result.new.is_none() {
+            } else {
                 println!("No changes");
             }
             println!("{}", "------".yellow());
