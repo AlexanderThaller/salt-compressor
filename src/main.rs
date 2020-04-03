@@ -127,13 +127,7 @@ fn main() {
                     .expect("can not read from stdin");
                 buffer
             }
-            _ => {
-                let mut file = File::open(input).expect("can not open input file");
-                let mut input = String::new();
-                file.read_to_string(&mut input)
-                    .expect("can not read input file to string");
-                input
-            }
+            _ => std::fs::read_to_string(input).expect("can not read from input file"),
         }
     };
 
@@ -241,8 +235,8 @@ fn get_results(
 
                 results.push(MinionResult {
                     host: host.clone(),
-                    result: result,
-                    retcode: retcode,
+                    result,
+                    retcode,
                     ..MinionResult::default()
                 });
             }
@@ -251,7 +245,7 @@ fn get_results(
                 results.push(MinionResult {
                     host: host.clone(),
                     result: Some(r.clone()),
-                    retcode: retcode,
+                    retcode,
                     ..MinionResult::default()
                 });
             }
@@ -268,7 +262,7 @@ fn get_results(
                 results.push(MinionResult {
                     host: host.clone(),
                     result: Some(values.join("\n").to_string()),
-                    retcode: retcode,
+                    retcode,
                     ..MinionResult::default()
                 });
             }
@@ -347,8 +341,8 @@ fn get_results(
                     results.push(MinionResult {
                         command: Some(command.to_string()),
                         host: host.clone(),
-                        output: output,
-                        result: result,
+                        output,
+                        result,
                         retcode: retcode.clone(),
                     });
                 }
@@ -358,7 +352,7 @@ fn get_results(
 
     for (host, message) in failed_minions {
         results.push(MinionResult {
-            host: host,
+            host,
             retcode: Retcode::Failure,
             output: Some(message.into()),
             ..MinionResult::default()
@@ -416,7 +410,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             continue;
         }
 
-        if filter.unchanged && !result.output.is_some() && result.retcode.is_success() {
+        if filter.unchanged && result.output.is_none() && result.retcode.is_success() {
             filter_unchanged += 1;
             continue;
         }
@@ -454,9 +448,9 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             continue;
         }
 
-        println!("");
+        println!();
         println!("{}", "----------".bold());
-        println!("");
+        println!();
 
         // state, command info
         {
@@ -527,7 +521,7 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
         }
     }
 
-    println!("");
+    println!();
 
     print_filter_statistics("command", filter_command.len());
     print_filter_statistics("result", filter_result.len());
