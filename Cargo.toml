@@ -8,6 +8,7 @@ repository = "https://github.com/AlexanderThaller/salt-compressor"
 readme = "README.md"
 keywords = ["saltstack", "ops", "opsworks", "automation", "tool"]
 license = "MIT"
+edition = "2018"
 
 [badges]
 travis-ci = { repository = "AlexanderThaller/salt-compressor", branch = "master" }

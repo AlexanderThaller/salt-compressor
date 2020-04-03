@@ -1,28 +1,33 @@
-#[macro_use]
-extern crate log;
-extern crate loggerv;
-
-#[macro_use]
-extern crate clap;
-
-extern crate serde_json;
-
-extern crate regex;
-
-extern crate colored;
-
-use clap::App;
+use clap::{
+    crate_version,
+    load_yaml,
+    value_t,
+    App,
+};
 use colored::*;
-use log::Level;
+use log::{
+    error,
+    info,
+    trace,
+    warn,
+    Level,
+};
 use regex::Regex;
 use serde_json::Value;
-use std::collections::BTreeMap as DataMap;
-use std::collections::BTreeSet as DataSet;
-use std::fmt;
-use std::fs::File;
-use std::io::Write;
-use std::io::{self, Read};
-use std::process;
+use std::{
+    collections::{
+        BTreeMap as DataMap,
+        BTreeSet as DataSet,
+    },
+    fmt,
+    fs::File,
+    io::{
+        self,
+        Read,
+        Write,
+    },
+    process,
+};
 
 #[cfg(test)]
 mod tests;
@@ -570,8 +575,7 @@ fn write_save_file(host_data: &str) {
         .write_all(host_data.as_bytes())
         .expect("can not write host data to save_file");
     info!(
-        "please send me the save file under {} which contains the json \
-           data from salt",
+        "please send me the save file under {} which contains the json data from salt",
         save_filename
     );
 }
@@ -584,7 +588,8 @@ fn cleanup_input_data<'a>(
 ) {
     let mut failed_minions = DataMap::default();
 
-    // Cleanup input data from minions that either didnt return or had a duplicate key
+    // Cleanup input data from minions that either didnt return or had a duplicate
+    // key
     let input_data = {
         // match all hosts that have not returned as they are not in the json data
         // format is normally like "Minion minionid did not respond. No job will be
@@ -603,7 +608,8 @@ fn cleanup_input_data<'a>(
             .into_owned();
 
         // match all hosts that have a duplicate key in the system
-        // like "minion minionid was already deleted from tracker, probably a duplicate key"
+        // like "minion minionid was already deleted from tracker, probably a duplicate
+        // key"
         let catch_duplicate_key_minions = Regex::new(
             r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
         )

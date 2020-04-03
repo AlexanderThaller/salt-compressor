@@ -1,5 +1,5 @@
 mod test_retcode {
-    use Retcode;
+    use crate::Retcode;
 
     #[test]
     fn from_success() {
@@ -15,11 +15,13 @@ mod test_retcode {
 }
 
 mod test_get_results {
-    extern crate serde_json;
-    use cleanup_input_data;
-    use get_results;
-    use MinionResult;
-    use Retcode;
+    use crate::{
+        cleanup_input_data,
+        get_results,
+        MinionResult,
+        Retcode,
+    };
+    use log::trace;
     use serde_json::Value;
     use std::collections::BTreeMap as DataMap;
 
@@ -114,7 +116,6 @@ mod test_get_results {
 
         assert_eq!(got, expected);
     }
-
 
     #[test]
     fn array() {
