@@ -7,25 +7,22 @@ extern crate clap;
 
 extern crate serde_json;
 
-extern crate time;
-
 extern crate regex;
 
 extern crate colored;
 
 use clap::App;
 use colored::*;
-use log::LogLevel;
+use log::Level;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::BTreeMap as DataMap;
 use std::collections::BTreeSet as DataSet;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Read};
 use std::io::Write;
+use std::io::{self, Read};
 use std::process;
-use time::get_time;
 
 #[cfg(test)]
 mod tests;
@@ -84,8 +81,8 @@ fn main() {
     trace!("matches: {:?}", matches);
 
     {
-        let loglevel: LogLevel =
-            value_t!(matches, "loglevel", LogLevel).expect("can not parse loglevel from args");
+        let loglevel: Level =
+            value_t!(matches, "loglevel", Level).expect("can not parse loglevel from args");
         loggerv::init_with_level(loglevel).expect("can not initialize logger with parsed loglevel");
     }
 
@@ -94,9 +91,8 @@ fn main() {
     let filter_failed = matches.is_present("filter_failed");
     let filter_succeeded = matches.is_present("filter_succeeded");
     let filter_unchanged = matches.is_present("filter_unchanged");
-    let filter_command = value_t!(matches, "filter_command", Regex).expect(
-        "can not parse regex from filter_command",
-    );
+    let filter_command = value_t!(matches, "filter_command", Regex)
+        .expect("can not parse regex from filter_command");
     let filter_result =
         value_t!(matches, "filter_result", Regex).expect("can not parse regex from filter_result");
     let filter_output =
@@ -114,24 +110,23 @@ fn main() {
     trace!("filter: {:#?}", filter);
 
     let input_data = {
-        let input = matches.value_of("input").expect(
-            "can not get input file from args",
-        );
+        let input = matches
+            .value_of("input")
+            .expect("can not get input file from args");
 
         match input {
             "-" => {
                 let mut buffer = String::new();
-                io::stdin().read_to_string(&mut buffer).expect(
-                    "can not read from stdin",
-                );
+                io::stdin()
+                    .read_to_string(&mut buffer)
+                    .expect("can not read from stdin");
                 buffer
             }
             _ => {
                 let mut file = File::open(input).expect("can not open input file");
                 let mut input = String::new();
-                file.read_to_string(&mut input).expect(
-                    "can not read input file to string",
-                );
+                file.read_to_string(&mut input)
+                    .expect("can not read input file to string");
                 input
             }
         }
@@ -219,12 +214,10 @@ fn get_results(
         trace!("values: {:#?}", values);
 
         let retcode: Retcode = match values.get("retcode") {
-            Some(o) => {
-                match o.as_u64() {
-                    Some(v) => v.into(),
-                    None => return Err(ResultError::ReturnCodeNotNumber),
-                }
-            }
+            Some(o) => match o.as_u64() {
+                Some(v) => v.into(),
+                None => return Err(ResultError::ReturnCodeNotNumber),
+            },
             None => {
                 warn!("host {} does not have a return code", host);
                 Retcode::Failure
@@ -259,11 +252,11 @@ fn get_results(
             }
 
             Value::Array(ref r) => {
-                let values: Vec<_> = r.iter()
+                let values: Vec<_> = r
+                    .iter()
                     .map(|v| {
-                        v.as_str().expect(
-                            "can not convert the array value to a string",
-                        )
+                        v.as_str()
+                            .expect("can not convert the array value to a string")
                     })
                     .collect();
 
@@ -288,47 +281,37 @@ fn get_results(
                     trace!("command_result: {:#?}", command_result);
 
                     let result = match command_result.get("comment") {
-                        Some(r) => {
-                            match r.as_str() {
-                                Some(s) => Some(s.to_string()),
-                                None => return Err(ResultError::ConvertValueToString),
-                            }
-                        }
+                        Some(r) => match r.as_str() {
+                            Some(s) => Some(s.to_string()),
+                            None => return Err(ResultError::ConvertValueToString),
+                        },
                         None => None,
                     };
 
                     let old = match command_result.get("old") {
-                        Some(r) => {
-                            match r.as_str() {
-                                Some(s) => Some(s.to_string()),
-                                None => return Err(ResultError::OldIsNotAString),
-                            }
-                        }
+                        Some(r) => match r.as_str() {
+                            Some(s) => Some(s.to_string()),
+                            None => return Err(ResultError::OldIsNotAString),
+                        },
                         None => None,
                     };
 
                     let new = match command_result.get("new") {
-                        Some(r) => {
-                            match r.as_str() {
-                                Some(s) => Some(s.to_string()),
-                                None => return Err(ResultError::NewIsNotAString),
-                            }
-                        }
+                        Some(r) => match r.as_str() {
+                            Some(s) => Some(s.to_string()),
+                            None => return Err(ResultError::NewIsNotAString),
+                        },
                         None => None,
                     };
 
                     let output = match command_result.get("changes") {
-                        Some(r) => {
-                            match r.get("diff") {
-                                Some(d) => {
-                                    match d.as_str() {
-                                        Some(i) => Some(i.to_string()),
-                                        None => return Err(ResultError::ConvertDiffToString),
-                                    }
-                                }
-                                None => None,
-                            }
-                        }
+                        Some(r) => match r.get("diff") {
+                            Some(d) => match d.as_str() {
+                                Some(i) => Some(i.to_string()),
+                                None => return Err(ResultError::ConvertDiffToString),
+                            },
+                            None => None,
+                        },
                         None => None,
                     };
 
@@ -433,10 +416,10 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             continue;
         }
 
-        if result.command.is_some() &&
-            !filter.command.is_match(
-                result.command.clone().unwrap().as_str(),
-            )
+        if result.command.is_some()
+            && !filter
+                .command
+                .is_match(result.command.clone().unwrap().as_str())
         {
             for host in hosts {
                 filter_command.insert(host);
@@ -444,10 +427,10 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             continue;
         }
 
-        if result.result.is_some() &&
-            !filter.result.is_match(
-                result.result.clone().unwrap().as_str(),
-            )
+        if result.result.is_some()
+            && !filter
+                .result
+                .is_match(result.result.clone().unwrap().as_str())
         {
             for host in hosts {
                 filter_result.insert(host);
@@ -455,10 +438,10 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             continue;
         }
 
-        if result.output.is_some() &&
-            !filter.output.is_match(
-                result.output.clone().unwrap().as_str(),
-            )
+        if result.output.is_some()
+            && !filter
+                .output
+                .is_match(result.output.clone().unwrap().as_str())
         {
             for host in hosts {
                 filter_output.insert(host);
@@ -492,7 +475,6 @@ fn print_compressed(compressed: DataMap<MinionResult, Vec<String>>, filter: &Fil
             println!("{}{}", "HOSTS: ".cyan(), hosts.join(", ").as_str());
             println!("{}\n", "------".cyan());
         }
-
 
         // output
         {
@@ -579,11 +561,14 @@ fn print_filter_statistics(stats: &str, count: usize) {
 }
 
 fn write_save_file(host_data: &str) {
-    let save_filename = format!("/tmp/salt-compressor_{}.json", get_time().sec);
-    let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
-    save_file.write_all(host_data.as_bytes()).expect(
-        "can not write host data to save_file",
+    let save_filename = format!(
+        "/tmp/salt-compressor_{}.json",
+        chrono::Utc::now().timestamp()
     );
+    let mut save_file = File::create(save_filename.clone()).expect("can not create save_file");
+    save_file
+        .write_all(host_data.as_bytes())
+        .expect("can not write host data to save_file");
     info!(
         "please send me the save file under {} which contains the json \
            data from salt",
@@ -593,7 +578,10 @@ fn write_save_file(host_data: &str) {
 
 fn cleanup_input_data<'a>(
     input_data: &str,
-) -> (String, std::collections::BTreeMap<std::string::String, &'a str>) {
+) -> (
+    String,
+    std::collections::BTreeMap<std::string::String, &'a str>,
+) {
     let mut failed_minions = DataMap::default();
 
     // Cleanup input data from minions that either didnt return or had a duplicate key
@@ -602,9 +590,8 @@ fn cleanup_input_data<'a>(
         // format is normally like "Minion minionid did not respond. No job will be
         // sent."
         let catch_not_returned_minions =
-            Regex::new(
-                r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$",
-            ).expect("regex for catching not returned minions is not valid");
+            Regex::new(r"(?m)^Minion (\S*) did not respond\. No job will be sent\.$")
+                .expect("regex for catching not returned minions is not valid");
 
         let errmessage = "Minion did not respond. No job will be sent.";
         for host in catch_not_returned_minions.captures_iter(input_data) {
@@ -617,10 +604,10 @@ fn cleanup_input_data<'a>(
 
         // match all hosts that have a duplicate key in the system
         // like "minion minionid was already deleted from tracker, probably a duplicate key"
-        let catch_duplicate_key_minions =
-            Regex::new(
-                r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
-            ).expect("regex for catching duplicate key minions is not valid");
+        let catch_duplicate_key_minions = Regex::new(
+            r"(?m)^minion (\S*) was already deleted from tracker, probably a duplicate key",
+        )
+        .expect("regex for catching duplicate key minions is not valid");
 
         let errmessage = "Minion was already deleted from tracker, probably a duplicate key.";
         for host in catch_duplicate_key_minions.captures_iter(input_data) {
